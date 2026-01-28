@@ -51,7 +51,7 @@ export default function Map({ onPolygonCreated, onPolygonSelected, polygons }: M
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/satellite-v9',
+      style: 'mapbox://styles/mapbox/satellite-streets-v12',
       center: defaultCenter,
       zoom: defaultZoom,
     });
