@@ -75,7 +75,14 @@ export default function Map({ onPolygonCreated, onPolygonSelected, polygons }: M
     });
 
     map.current.on('load', () => {
+      const ZOOM_THRESHOLD = 14;
+
       map.current!.addSource('polygons', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      map.current!.addSource('centroids', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
       });
@@ -84,6 +91,7 @@ export default function Map({ onPolygonCreated, onPolygonSelected, polygons }: M
         id: 'polygons-fill',
         type: 'fill',
         source: 'polygons',
+        minzoom: ZOOM_THRESHOLD,
         paint: {
           'fill-color': '#3b82f6',
           'fill-opacity': 0.3,
@@ -94,30 +102,48 @@ export default function Map({ onPolygonCreated, onPolygonSelected, polygons }: M
         id: 'polygons-outline',
         type: 'line',
         source: 'polygons',
+        minzoom: ZOOM_THRESHOLD,
         paint: {
           'line-color': '#1d4ed8',
           'line-width': 2,
         },
       });
 
-      map.current!.on('click', 'polygons-fill', (e) => {
-        if (e.features && e.features[0]) {
-          const feature = e.features[0];
-          onPolygonSelected({
-            type: 'Feature',
-            id: feature.properties?.id,
-            geometry: feature.geometry as Polygon['geometry'],
-            properties: feature.properties as Record<string, unknown>,
-          });
-        }
+      map.current!.addLayer({
+        id: 'polygons-points',
+        type: 'circle',
+        source: 'centroids',
+        maxzoom: ZOOM_THRESHOLD,
+        paint: {
+          'circle-radius': 6,
+          'circle-color': '#3b82f6',
+          'circle-stroke-color': '#1d4ed8',
+          'circle-stroke-width': 2,
+        },
       });
 
-      map.current!.on('mouseenter', 'polygons-fill', () => {
-        map.current!.getCanvas().style.cursor = 'pointer';
-      });
+      const clickableLayers = ['polygons-fill', 'polygons-points'];
 
-      map.current!.on('mouseleave', 'polygons-fill', () => {
-        map.current!.getCanvas().style.cursor = '';
+      clickableLayers.forEach((layerId) => {
+        map.current!.on('click', layerId, (e) => {
+          if (e.features && e.features[0]) {
+            const feature = e.features[0];
+            onPolygonSelected({
+              type: 'Feature',
+              id: feature.properties?.id,
+              geometry: feature.geometry as Polygon['geometry'],
+              properties: feature.properties as Record<string, unknown>,
+            });
+          }
+        });
+
+        map.current!.on('mouseenter', layerId, () => {
+          map.current!.getCanvas().style.cursor = 'pointer';
+        });
+
+        map.current!.on('mouseleave', layerId, () => {
+          map.current!.getCanvas().style.cursor = '';
+        });
       });
     });
 
@@ -129,9 +155,28 @@ export default function Map({ onPolygonCreated, onPolygonSelected, polygons }: M
 
   useEffect(() => {
     if (!map.current || !polygons) return;
-    const source = map.current.getSource('polygons') as mapboxgl.GeoJSONSource;
-    if (source) {
-      source.setData(polygons);
+    const polySource = map.current.getSource('polygons') as mapboxgl.GeoJSONSource;
+    const centroidSource = map.current.getSource('centroids') as mapboxgl.GeoJSONSource;
+    if (polySource) {
+      polySource.setData(polygons);
+    }
+    if (centroidSource) {
+      const centroidFeatures = polygons.features.map((f) => {
+        const coords = f.geometry.coordinates[0];
+        let lngSum = 0, latSum = 0;
+        const n = coords.length;
+        for (const [lng, lat] of coords) {
+          lngSum += lng;
+          latSum += lat;
+        }
+        return {
+          type: 'Feature' as const,
+          id: f.id,
+          geometry: { type: 'Point' as const, coordinates: [lngSum / n, latSum / n] },
+          properties: f.properties,
+        };
+      });
+      centroidSource.setData({ type: 'FeatureCollection', features: centroidFeatures });
     }
   }, [polygons]);
 
