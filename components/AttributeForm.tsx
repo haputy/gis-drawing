@@ -1,6 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { v4 as uuidv4 } from 'uuid';
+
+let placekeyCounter = 0;
+const sessionBatchId = uuidv4();
 
 interface AttributeFormProps {
   onSave: (attributes: Record<string, string>) => void;
@@ -10,76 +14,58 @@ interface AttributeFormProps {
 }
 
 export default function AttributeForm({ onSave, onCancel, loading, error }: AttributeFormProps) {
-  const [fields, setFields] = useState<{ key: string; value: string }[]>([
-    { key: 'name', value: '' },
-    { key: 'type', value: '' },
-  ]);
-
-  function addField() {
-    setFields([...fields, { key: '', value: '' }]);
-  }
-
-  function removeField(index: number) {
-    setFields(fields.filter((_, i) => i !== index));
-  }
-
-  function updateField(index: number, field: 'key' | 'value', value: string) {
-    const newFields = [...fields];
-    newFields[index][field] = value;
-    setFields(newFields);
-  }
+  const [poiName, setPoiName] = useState('');
+  const [naicsCode, setNaicsCode] = useState('');
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const attributes: Record<string, string> = {};
-    fields.forEach(({ key, value }) => {
-      if (key.trim()) {
-        attributes[key.trim()] = value;
-      }
+    if (!poiName.trim() || !naicsCode.trim()) return;
+
+    placekeyCounter++;
+    const now = Date.now();
+
+    onSave({
+      poi_name: poiName.trim(),
+      naics_code: naicsCode.trim(),
+      placekey: `WAD-${placekeyCounter}`,
+      poi_source: 'new',
+      geometry_type: 'POLYGON',
+      iso_country_code: 'US',
+      batch_id: sessionBatchId,
+      created_at: String(now),
+      last_edited_date: String(now),
     });
-    onSave(attributes);
   }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-xl p-6 w-96 max-h-[80vh] overflow-y-auto">
-        <h2 className="text-lg font-bold mb-4">Polygon Attributes</h2>
+        <h2 className="text-lg font-bold mb-4">POI Details</h2>
 
         <div className="space-y-3 mb-4">
-          {fields.map((field, index) => (
-            <div key={index} className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Field name"
-                value={field.key}
-                onChange={(e) => updateField(index, 'key', e.target.value)}
-                className="flex-1 p-2 border rounded text-sm"
-              />
-              <input
-                type="text"
-                placeholder="Value"
-                value={field.value}
-                onChange={(e) => updateField(index, 'value', e.target.value)}
-                className="flex-1 p-2 border rounded text-sm"
-              />
-              <button
-                type="button"
-                onClick={() => removeField(index)}
-                className="text-red-500 hover:text-red-700 px-2"
-              >
-                x
-              </button>
-            </div>
-          ))}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">POI Name *</label>
+            <input
+              type="text"
+              value={poiName}
+              onChange={(e) => setPoiName(e.target.value)}
+              placeholder="e.g. Starbucks"
+              className="w-full p-2 border rounded text-sm"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">NAICS Code *</label>
+            <input
+              type="text"
+              value={naicsCode}
+              onChange={(e) => setNaicsCode(e.target.value)}
+              placeholder="e.g. 722515"
+              className="w-full p-2 border rounded text-sm"
+              required
+            />
+          </div>
         </div>
-
-        <button
-          type="button"
-          onClick={addField}
-          className="text-blue-500 hover:text-blue-700 text-sm mb-4"
-        >
-          + Add field
-        </button>
 
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
@@ -94,7 +80,7 @@ export default function AttributeForm({ onSave, onCancel, loading, error }: Attr
           </button>
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !poiName.trim() || !naicsCode.trim()}
             className="flex-1 p-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
           >
             {loading ? 'Saving...' : 'Save'}
